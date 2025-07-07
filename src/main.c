@@ -9,7 +9,17 @@
 #define LED_STRIP_GPIO 18
 #define LED_NUMBERS 100
 
-static const char *TAG = "LED_STRIP_EXAMPLE";
+// === Configurable timings ===
+#define TRANSITION_TIME_MS 5000      // Total time for transition wipe in milliseconds
+#define INTERVAL_MIN_S     150       // Minimum time between transitions in seconds (2.5 minutes)
+#define INTERVAL_MAX_S     600       // Maximum time between transitions in seconds (10 minutes)
+
+// #define TRANSITION_TIME_MS 500      // Total time for transition wipe in milliseconds
+// #define INTERVAL_MIN_S     2       // Minimum time between transitions in seconds
+// #define INTERVAL_MAX_S     11       // Maximum time between transitions in seconds
+
+
+static const char *TAG = "LED_STRIP";
 
 void app_main(void) {
     led_strip_config_t strip_config = {
@@ -30,21 +40,28 @@ void app_main(void) {
     ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &strip));
     ESP_ERROR_CHECK(led_strip_clear(strip));
 
-    ESP_LOGI(TAG, "Starting random color loop");
+    ESP_LOGI(TAG, "Starting random color wipe loop");
 
     while (1) {
+        // Pick next color: red or blue
         uint8_t r = 255, g = 0, b = 0;
         if (esp_random() % 2) {
-            r = 0; b = 255; g = 0;
+            r = 0; g = 0; b = 255;
         }
+
+        ESP_LOGI(TAG, "Transitioning to color: R=%d G=%d B=%d", r, g, b);
+
+        // Calculate per-pixel delay
+        int delay_per_pixel_ms = TRANSITION_TIME_MS / LED_NUMBERS;
 
         for (int i = 0; i < LED_NUMBERS; i++) {
             ESP_ERROR_CHECK(led_strip_set_pixel(strip, i, r, g, b));
+            ESP_ERROR_CHECK(led_strip_refresh(strip));
+            vTaskDelay(pdMS_TO_TICKS(delay_per_pixel_ms));
         }
-        ESP_ERROR_CHECK(led_strip_refresh(strip));
 
-        uint32_t delay_s = (esp_random() % (600 - 150) + 150); // 150–600 sec
-        ESP_LOGI(TAG, "Next color in %lu sec", delay_s);
+        uint32_t delay_s = (esp_random() % (INTERVAL_MAX_S - INTERVAL_MIN_S) + INTERVAL_MIN_S);
+        ESP_LOGI(TAG, "Holding for %lu seconds", delay_s);
         vTaskDelay(pdMS_TO_TICKS(delay_s * 1000));
     }
 }
